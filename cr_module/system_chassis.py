@@ -278,8 +278,11 @@ def get_single_system_info(redfish_url):
                         continue
 
                     # skip unknown DIMM and CPU status
-                    if dell_sensor.get('CurrentState') == dell_sensor.get('HealthState') and \
-                            dell_sensor.get('HealthState').upper() == "UNKNOWN":
+                    try:
+                        if dell_sensor.get('CurrentState') == dell_sensor.get('HealthState') and \
+                                dell_sensor.get('HealthState').upper() == "UNKNOWN":
+                            continue
+                    except Exception as ex:
                         continue
 
                     num_members += 1
