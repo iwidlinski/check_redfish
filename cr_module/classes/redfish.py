@@ -638,8 +638,10 @@ class RedfishConnection:
             self.vendor_data.set_bmc_name("iDRAC")
             if bmc_model == "13G Monolithic":
                 self.vendor_data.set_bmc_version("8")
-            if bmc_model in ["14G Monolithic", "15G Monolithic"]:
+            if bmc_model in ["14G Monolithic", "14G DCS", "15G Monolithic", "16G Monolithic"]:
                 self.vendor_data.set_bmc_version("9")
+            if bmc_model in ["17G Monolithic"]:
+                self.vendor_data.set_bmc_version("10")
 
         if vendor_string in ["Huawei"]:
 

@@ -479,14 +479,18 @@ Models:
 * ThinkAgile HX3720 Appliance (Lenovo XClarity Controller v4.2)
 
 ### Dell
-* PowerEdge R630   (iDRAC 8 Version 2.70.70.70)
-* PowerEdge R640   (iDrac 9 Version 4.22.00.00)
-* PowerEdge R6525  (iDRAC 9 Version 5.10.50.00)
-* PowerEdge R740   (iDRAC 9 Version 3.32.32.32)
-* PowerEdge R740xd (iDRAC 9 Version 4.00.00.00)
-* PowerEdge R7515  (iDRAC 9 Version 4.10.10.10)
-* PowerEdge R840   (iDRAC 9 Version 4.22.00.00)
-* PowerEdge R930   (iDRAC 8 Version 2.70.70.70)
+* PowerEdge C6420  (iDRAC  9 Version 6.10.30.00)
+* PowerEdge R630   (iDRAC  8 Version 2.70.70.70)
+* PowerEdge R640   (iDRAC  9 Version 4.22.00.00)
+* PowerEdge R6525  (iDRAC  9 Version 5.10.50.00)
+* PowerEdge R6615  (iDRAC  9 Version 7.20.30.00)
+* PowerEdge R740   (iDRAC  9 Version 3.32.32.32)
+* PowerEdge R770   (iDRAC 10 Version 1.20.60.50)
+* PowerEdge R740xd (iDRAC  9 Version 4.00.00.00)
+* PowerEdge R7515  (iDRAC  9 Version 4.10.10.10)
+* PowerEdge R7715  (iDRAC 10 Version 1.20.60.50)
+* PowerEdge R840   (iDRAC  9 Version 4.22.00.00)
+* PowerEdge R930   (iDRAC  8 Version 2.70.70.70)
 * XC6420 Appliance (Firmware: 5.00.20.00 & BIOS 2.12.2)
 
 ### Huawei
