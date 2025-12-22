@@ -13,7 +13,7 @@ from cr_module.common import get_status_data, grab
 from cr_module import get_system_power_state
 
 
-def get_single_chassis_temp(redfish_url, chassis_id, thermal_data, _):
+def get_single_chassis_temp(redfish_url, chassis_id, thermal_data):
 
     plugin_object = PluginData()
 

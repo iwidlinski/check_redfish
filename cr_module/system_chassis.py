@@ -28,13 +28,7 @@ def get_chassis_data(data_type):
         plugin_object.inventory.add_issue(data_type, "No 'chassis' property found in root path '/redfish/v1'")
         return
 
-    handler = {
-        PowerSupply: get_single_chassis_power,
-        Temperature: get_single_chassis_temp,
-        Fan: get_single_chassis_fan
-    }
-
-    if data_type not in handler.keys():
+    if data_type not in [PowerSupply, Temperature, Fan]:
         raise AttributeError(f"Unknown data_type used for get_chassis_data(): {type(data_type)}")
 
     data_point = "Power" if data_type == PowerSupply else "Thermal"
@@ -96,14 +90,21 @@ def get_chassis_data(data_type):
                 plugin_object.add_output_data("OK", default_text, summary=True, location=f"Chassis {chassis_id}")
                 continue
 
-            # there seems to be an error retrieving data
-            if discovered_url is not None and discovered_url_data is not None:
-                # hand over to handle returned data
-                handler.get(data_type)(discovered_url, chassis_id, discovered_url_data, sensors_data)
-
         else:
-            data_url = discovered_url if discovered_url is not None else fallback_url
-            handler.get(data_type)(data_url, chassis_id, chassis_power_thermal_data, sensors_data)
+            discovered_url_data = chassis_power_thermal_data
+            if discovered_url is None:
+                discovered_url = fallback_url
+
+        # there seems to be an error retrieving data
+        if discovered_url is None and discovered_url_data is None:
+            continue
+
+        if data_type == PowerSupply:
+            get_single_chassis_power(discovered_url, chassis_id, discovered_url_data, chassis_data)
+        elif data_type == Temperature:
+            get_single_chassis_temp(discovered_url, chassis_id, discovered_url_data)
+        elif data_type == Fan:
+            get_single_chassis_fan(discovered_url, chassis_id, discovered_url_data, sensors_data)
 
     return
 
