@@ -336,7 +336,8 @@ class RedfishConnection:
 
         return
 
-    def _is_safe_redirect(self, redirect_url, original_host):
+    @staticmethod
+    def _is_safe_redirect(redirect_url, original_host):
         """Validate redirect URL is safe and appropriate for Redfish sessions."""
         try:
             parsed = urlparse(redirect_url)
@@ -393,10 +394,10 @@ class RedfishConnection:
                 session_token = response.headers.get('X-Auth-Token')
                 session_location = response.headers.get('Location')
 
-                if session_token:
+                if session_token is not None:
                     # Set up the redfish connection with the session information
                     self.connection.set_session_key(session_token)
-                    if session_location:
+                    if session_location is not None:
                         self.connection.set_session_location(session_location)
                     return
                 else:
@@ -412,10 +413,10 @@ class RedfishConnection:
 
         except requests.exceptions.Timeout:
             raise redfish.rest.v1.RetriesExhaustedError("Request timeout")
-        except requests.exceptions.ConnectionError:
-            raise redfish.rest.v1.ServerDownOrUnreachableError("Connection failed")
         except requests.exceptions.SSLError:
             raise redfish.rest.v1.ServerDownOrUnreachableError("SSL connection failed")
+        except requests.exceptions.ConnectionError:
+            raise redfish.rest.v1.ServerDownOrUnreachableError("Connection failed")
         except requests.exceptions.RequestException as e:
             raise Exception(f"HTTP request error: {e}")
 
