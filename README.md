@@ -10,7 +10,7 @@ using [netbox-sync](https://github.com/bb-Ricardo/netbox-sync).
 
 ## Requirements
 * python >= 3.6
-* redfish >= 2.1.4
+* redfish >= 3.1.0
 
 ## Installation
 
