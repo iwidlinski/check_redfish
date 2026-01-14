@@ -69,9 +69,7 @@ This is a monitoring/inventory plugin to check components and
 health status of systems which support Redfish.
 It will also create a inventory of all components of a system.
 
-R.I.P. IPMI
-
-Version: 2.0.0 (2025-10-15)
+Version: 2.1.0 (2026-01-14)
 
 mandatory arguments:
   -H HOST, --host HOST  define the host to request. To change the port just
