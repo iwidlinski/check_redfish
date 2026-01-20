@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-#  Copyright (c) 2020 - 2025 Ricardo Bartels. All rights reserved.
+#  Copyright (c) 2020 - 2026 Ricardo Bartels. All rights reserved.
 #
 #  check_redfish.py
 #
@@ -34,6 +34,8 @@ def get_physical_drive_status(drive_data: PhysicalDrive, issues: str=None) -> st
         pd_status_details.append(f"{drive_data.model}")
     if drive_data.type is not None:
         pd_status_details.append(f"{drive_data.type}")
+    if drive_data.serial is not None:
+        pd_status_details.append(f"SN: {drive_data.serial}")
     if drive_data.interface_type is not None:
         pd_status_details.append(f"{drive_data.interface_type}")
     if drive_data.type == "SSD" and drive_data.predicted_media_life_left_percent is not None:
@@ -702,6 +704,8 @@ def get_storage_generic(system):
             hashlib.sha1(drive_link.encode("utf-8")).hexdigest())
 
         drive_serial = drive_response.get("SerialNumber")
+        if drive_serial == "NA":
+            drive_serial = None
 
         if drive_serial is not None and \
                 drive_serial in [x.serial for x in plugin_object.inventory.get(PhysicalDrive)]:

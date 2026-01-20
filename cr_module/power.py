@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-#  Copyright (c) 2020 - 2025 Ricardo Bartels. All rights reserved.
+#  Copyright (c) 2020 - 2026 Ricardo Bartels. All rights reserved.
 #
 #  check_redfish.py
 #
@@ -13,7 +13,7 @@ from cr_module.common import get_status_data, grab
 from cr_module import get_system_power_state
 
 
-def get_single_chassis_power(redfish_url, chassis_id, power_data, _):
+def get_single_chassis_power(redfish_url, chassis_id, power_data, chassis_data):
 
     plugin_object = PluginData()
 
@@ -34,6 +34,7 @@ def get_single_chassis_power(redfish_url, chassis_id, power_data, _):
     issue_detected = False
     ps_num = 0
     ps_absent = 0
+    default_text = ""
 
     if "PowerSupplies" in power_data:
 
@@ -193,7 +194,9 @@ def get_single_chassis_power(redfish_url, chassis_id, power_data, _):
 
     if ps_num == 0:
         default_text = "No power supplies detected"
-        if plugin_object.cli_args.ignore_missing_ps is False or plugin_object.in_firmware_collection_mode() is False:
+        if chassis_data.get("ChassisType") == "Blade":
+            default_text += " (managed by enclosure)"
+        elif plugin_object.cli_args.ignore_missing_ps is False or plugin_object.in_firmware_collection_mode() is False:
             issue_detected = True
             plugin_object.inventory.add_issue(PowerSupply, f"No power supply data returned for API URL '{redfish_url}'")
 

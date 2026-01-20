@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-#  Copyright (c) 2020 - 2025 Ricardo Bartels. All rights reserved.
+#  Copyright (c) 2020 - 2026 Ricardo Bartels. All rights reserved.
 #
 #  check_redfish.py
 #
@@ -13,7 +13,7 @@ from cr_module.common import get_status_data, grab
 from cr_module import get_system_power_state
 
 
-def get_single_chassis_temp(redfish_url, chassis_id, thermal_data, _):
+def get_single_chassis_temp(redfish_url, chassis_id, thermal_data):
 
     plugin_object = PluginData()
 
