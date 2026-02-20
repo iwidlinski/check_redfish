@@ -351,12 +351,15 @@ def get_system_nics(redfish_url):
             if port_inventory.operation_status is None:
                 port_inventory.operation_status = status_data.get("State")
 
-            # get and sanitize MAC and WWPN addresses
+            # get and sanitize MAC, WWPN and InfiniBand GUID addresses
             port_inventory.update("addresses",
                                   format_interface_addresses(grab(function_response, "Ethernet.PermanentMACAddress")) +
                                   format_interface_addresses(grab(function_response, "Ethernet.MACAddress")) +
                                   format_interface_addresses(grab(function_response, "FibreChannel.PermanentWWPN")) +
-                                  format_interface_addresses(grab(function_response, "FibreChannel.WWPN")),
+                                  format_interface_addresses(grab(function_response, "FibreChannel.WWPN")) +
+                                  format_interface_addresses(grab(function_response, "InfiniBand.PermanentPortGUID")) +
+                                  format_interface_addresses(grab(function_response, "InfiniBand.PortGUID")) +
+                                  format_interface_addresses(grab(function_response, "InfiniBand.NodeGUID")),
                                   append=True)
 
             # set VLAN settings
