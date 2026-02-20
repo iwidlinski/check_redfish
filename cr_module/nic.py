@@ -433,6 +433,44 @@ def get_system_nics(redfish_url):
 
         return return_data
 
+    def get_network_adapter_members_from_reference(network_adapter_reference):
+
+        return_data = list()
+
+        if network_adapter_reference is None:
+            return return_data
+
+        if isinstance(network_adapter_reference, list):
+            for entry in network_adapter_reference:
+                return_data.extend(get_network_adapter_members_from_reference(entry))
+            return return_data
+
+        if isinstance(network_adapter_reference, str):
+            network_adapter_response = \
+                plugin_object.rf.get_view(f"{network_adapter_reference}{plugin_object.rf.vendor_data.expand_string}")
+            if network_adapter_response.get("error") is None:
+                return_data.extend(get_network_adapter_members(network_adapter_response))
+            return return_data
+
+        if isinstance(network_adapter_reference, dict):
+            if network_adapter_reference.get("Id") is not None:
+                return_data.append(network_adapter_reference)
+                return return_data
+
+            network_adapter_link = network_adapter_reference.get("@odata.id")
+            if network_adapter_link is not None:
+                return_data.extend(get_network_adapter_members_from_reference(network_adapter_link))
+                return return_data
+
+            members = network_adapter_reference.get("Members")
+            if members is not None:
+                return_data.extend(get_network_adapter_members_from_reference(members))
+                return return_data
+
+            return_data.extend(get_network_adapter_members(network_adapter_reference))
+
+        return return_data
+
     plugin_object.set_current_command("NICs")
 
     system_id = redfish_url.rstrip("/").split("/")[-1]
@@ -508,18 +546,12 @@ def get_system_nics(redfish_url):
             if chassis_response.get("error"):
                 continue
 
-            chassis_network_adapter_path = grab(chassis_response, "NetworkAdapters/@odata.id", separator="/")
-            if chassis_network_adapter_path is None:
-                continue
+            chassis_network_adapters = \
+                chassis_response.get("NetworkAdapters") or \
+                grab(chassis_response, "Links.NetworkAdapters") or \
+                grab(chassis_response, "Link.NetworkAdapters")
 
-            chassis_network_adapter_response = \
-                plugin_object.rf.get_view(
-                    f"{chassis_network_adapter_path}{plugin_object.rf.vendor_data.expand_string}")
-
-            if chassis_network_adapter_response.get("error"):
-                continue
-
-            network_adapter_members.extend(get_network_adapter_members(chassis_network_adapter_response))
+            network_adapter_members.extend(get_network_adapter_members_from_reference(chassis_network_adapters))
 
     if len(network_adapter_members) == 0 and network_adapter_response.get("error") and not system_is_booting():
         plugin_object.add_data_retrieval_error(NetworkAdapter, network_adapter_response, network_adapter_path)
@@ -611,13 +643,31 @@ def get_system_nics(redfish_url):
                 if port_data.get("error") is None:
                     network_ports.extend(port_data.get("Members"))
 
-            """ # currently only used within iLO 6 and no useful info provided at the moment
+            # some platforms expose NetworkDeviceFunctions at adapter level (not only per controller)
+            adapter_network_functions = \
+                grab(adapter_response, "Links.NetworkDeviceFunctions") or \
+                grab(adapter_response, "Link.NetworkDeviceFunctions") or list()
+
+            if isinstance(adapter_network_functions, list):
+                network_functions.extend(adapter_network_functions)
+            else:
+                network_functions.append(adapter_network_functions)
+
             if adapter_response.get("NetworkDeviceFunctions") is not None:
-                network_functions_data = plugin_object.rf.get(grab(adapter_response,
-                                                                   "NetworkDeviceFunctions/@odata.id", separator="/"))
-                if network_functions_data is not None:
-                    network_functions.extend(network_functions_data.get("Members"))
-            """
+                network_functions_data = adapter_response.get("NetworkDeviceFunctions")
+
+                if isinstance(network_functions_data, dict):
+                    if network_functions_data.get("Members") is not None:
+                        network_functions.extend(network_functions_data.get("Members"))
+                    else:
+                        network_functions_link = grab(adapter_response, "NetworkDeviceFunctions/@odata.id",
+                                                      separator="/")
+                        if network_functions_link is not None:
+                            network_functions_data = plugin_object.rf.get(network_functions_link)
+                            if network_functions_data.get("error") is None:
+                                network_functions.extend(network_functions_data.get("Members") or list())
+                elif isinstance(network_functions_data, list):
+                    network_functions.extend(network_functions_data)
 
             num_ports = len(network_ports)
 
