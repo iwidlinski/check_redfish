@@ -392,10 +392,52 @@ def get_system_nics(redfish_url):
 
         return port_inventory
 
+    def get_network_adapter_members(network_adapter_data):
+
+        if not isinstance(network_adapter_data, dict):
+            return list()
+
+        # HPE specific
+        network_adapter_members = network_adapter_data.get("NetworkAdapters")
+        if network_adapter_members is None:
+            network_adapter_members = network_adapter_data.get("Members")
+
+        if network_adapter_members is None:
+            return list()
+
+        if isinstance(network_adapter_members, list):
+            return network_adapter_members
+
+        return [network_adapter_members]
+
+    def get_redfish_link_list(redfish_data):
+
+        return_data = list()
+
+        if isinstance(redfish_data, str):
+            return_data.append(redfish_data)
+            return return_data
+
+        if isinstance(redfish_data, list):
+            for item in redfish_data:
+                return_data.extend(get_redfish_link_list(item))
+            return return_data
+
+        if isinstance(redfish_data, dict):
+            odata_id = redfish_data.get("@odata.id")
+            if isinstance(odata_id, str):
+                return_data.append(odata_id)
+            else:
+                for value in redfish_data.values():
+                    return_data.extend(get_redfish_link_list(value))
+
+        return return_data
+
     plugin_object.set_current_command("NICs")
 
     system_id = redfish_url.rstrip("/").split("/")[-1]
 
+    system_response = None
     ethernet_interfaces_path = None
     network_adapter_path = None
 
@@ -442,30 +484,69 @@ def get_system_nics(redfish_url):
     if network_adapter_path is None:
         network_adapter_path = f"{redfish_url}/NetworkInterfaces"
 
+    network_adapter_members = list()
+
     network_adapter_response = \
         plugin_object.rf.get_view(f"{network_adapter_path}{plugin_object.rf.vendor_data.expand_string}")
 
-    if network_adapter_response.get("error") and not system_is_booting():
-        plugin_object.add_data_retrieval_error(NetworkAdapter, network_adapter_response, network_adapter_path+"123")
-        return
+    network_adapter_members.extend(get_network_adapter_members(network_adapter_response))
 
-    # HPE specific
-    if network_adapter_response.get("NetworkAdapters") is not None:
-        network_adapter_members = network_adapter_response.get("NetworkAdapters")
-    else:
-        network_adapter_members = network_adapter_response.get("Members")
+    # some vendors (e.g. Dell/NVIDIA HGX) expose network adapters in chassis resources
+    # rather than in the system '/NetworkInterfaces' collection
+    if len(network_adapter_members) == 0:
+        if system_response is None:
+            system_response = plugin_object.rf.get(redfish_url)
+
+            if system_response.get("error"):
+                plugin_object.add_data_retrieval_error(NetworkAdapter, system_response, redfish_url)
+                return
+
+        chassis_links = list(set(get_redfish_link_list(grab(system_response, "Links.Chassis"))))
+        for chassis_link in chassis_links:
+            chassis_response = plugin_object.rf.get(chassis_link)
+
+            if chassis_response.get("error"):
+                continue
+
+            chassis_network_adapter_path = grab(chassis_response, "NetworkAdapters/@odata.id", separator="/")
+            if chassis_network_adapter_path is None:
+                continue
+
+            chassis_network_adapter_response = \
+                plugin_object.rf.get_view(
+                    f"{chassis_network_adapter_path}{plugin_object.rf.vendor_data.expand_string}")
+
+            if chassis_network_adapter_response.get("error"):
+                continue
+
+            network_adapter_members.extend(get_network_adapter_members(chassis_network_adapter_response))
+
+    if len(network_adapter_members) == 0 and network_adapter_response.get("error") and not system_is_booting():
+        plugin_object.add_data_retrieval_error(NetworkAdapter, network_adapter_response, network_adapter_path)
+        return
 
     if network_adapter_members and len(network_adapter_members) > 0:
 
         for adapter in network_adapter_members:
 
-            if adapter.get("Id") is not None:
-                nic_member = adapter
-            else:
-                nic_member = plugin_object.rf.get(adapter.get("@odata.id"))
+            nic_member = None
+            adapter_link = None
+            if isinstance(adapter, dict):
+                if adapter.get("Id") is not None:
+                    nic_member = adapter
+                else:
+                    adapter_link = adapter.get("@odata.id")
+            elif isinstance(adapter, str):
+                adapter_link = adapter
+
+            if nic_member is None:
+                if adapter_link is None:
+                    continue
+
+                nic_member = plugin_object.rf.get(adapter_link)
 
                 if nic_member.get("error"):
-                    plugin_object.add_data_retrieval_error(NetworkAdapter, nic_member, adapter.get("@odata.id"))
+                    plugin_object.add_data_retrieval_error(NetworkAdapter, nic_member, adapter_link)
                     continue
 
             adapter_path = grab(nic_member, "Links/NetworkAdapter/@odata.id", separator="/") or \
