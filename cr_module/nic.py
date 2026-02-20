@@ -88,7 +88,10 @@ def format_interface_addresses(addresses):
         if address is None:
             continue
 
-        address = address.upper()
+        address = f"{address}".strip().upper()
+
+        # some vendors format addresses/GUIDs with '-' separators
+        address = address.replace("-", "")
 
         # add colons to interface address
         if ":" not in address:
@@ -319,7 +322,9 @@ def get_system_nics(redfish_url):
         port_inventory = None
         if function_response is not None:
             physical_port_path = grab(function_response, "Links.PhysicalPortAssignment") or \
-                 grab(function_response, "PhysicalPortAssignment")
+                 grab(function_response, "PhysicalPortAssignment") or \
+                 grab(function_response, "AssignablePhysicalNetworkPorts.0") or \
+                 grab(function_response, "Links.AssignablePhysicalNetworkPorts.0")
 
             if physical_port_path is None:
                 return
@@ -358,6 +363,7 @@ def get_system_nics(redfish_url):
                                   format_interface_addresses(grab(function_response, "FibreChannel.PermanentWWPN")) +
                                   format_interface_addresses(grab(function_response, "FibreChannel.WWPN")) +
                                   format_interface_addresses(grab(function_response, "InfiniBand.PermanentPortGUID")) +
+                                  format_interface_addresses(grab(function_response, "InfiniBand.PermanentNodeGUID")) +
                                   format_interface_addresses(grab(function_response, "InfiniBand.PortGUID")) +
                                   format_interface_addresses(grab(function_response, "InfiniBand.NodeGUID")),
                                   append=True)
@@ -539,7 +545,10 @@ def get_system_nics(redfish_url):
                 plugin_object.add_data_retrieval_error(NetworkAdapter, system_response, redfish_url)
                 return
 
-        chassis_links = list(set(get_redfish_link_list(grab(system_response, "Links.Chassis"))))
+        chassis_links = list(set(
+            get_redfish_link_list(grab(system_response, "Links.Chassis")) +
+            (plugin_object.rf.get_system_properties("chassis") or list())
+        ))
         for chassis_link in chassis_links:
             chassis_response = plugin_object.rf.get(chassis_link)
 
