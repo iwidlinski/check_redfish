@@ -204,7 +204,10 @@ def get_system_nics(redfish_url):
         else:
             port_id = port_response.get('Id')
 
-        if plugin_object.rf.vendor != "Dell":
+        # Dell ConnectX can expose repeating physical port IDs (e.g. "Port_0")
+        # per NetworkDeviceFunction across multiple adapters.
+        # Namespace by adapter in function path to avoid global collisions.
+        if adapter_id is not None and (plugin_object.rf.vendor != "Dell" or network_function_id is not None):
             port_id = f"{adapter_id}.{port_id}"
 
         # check if port has already been added
