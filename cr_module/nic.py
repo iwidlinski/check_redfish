@@ -88,7 +88,10 @@ def format_interface_addresses(addresses):
         if address is None:
             continue
 
-        address = address.upper()
+        address = f"{address}".strip().upper()
+
+        # some vendors format addresses/GUIDs with '-' separators
+        address = address.replace("-", "")
 
         # add colons to interface address
         if ":" not in address:
@@ -319,7 +322,8 @@ def get_system_nics(redfish_url):
         port_inventory = None
         if function_response is not None:
             physical_port_path = grab(function_response, "Links.PhysicalPortAssignment") or \
-                 grab(function_response, "PhysicalPortAssignment")
+                 grab(function_response, "PhysicalPortAssignment") or \
+                 grab(function_response, "AssignablePhysicalNetworkPorts.0")
 
             if physical_port_path is None:
                 return
@@ -351,12 +355,16 @@ def get_system_nics(redfish_url):
             if port_inventory.operation_status is None:
                 port_inventory.operation_status = status_data.get("State")
 
-            # get and sanitize MAC and WWPN addresses
+            # get and sanitize MAC, WWPN and InfiniBand GUID addresses
             port_inventory.update("addresses",
                                   format_interface_addresses(grab(function_response, "Ethernet.PermanentMACAddress")) +
                                   format_interface_addresses(grab(function_response, "Ethernet.MACAddress")) +
                                   format_interface_addresses(grab(function_response, "FibreChannel.PermanentWWPN")) +
-                                  format_interface_addresses(grab(function_response, "FibreChannel.WWPN")),
+                                  format_interface_addresses(grab(function_response, "FibreChannel.WWPN")) +
+                                  format_interface_addresses(grab(function_response, "InfiniBand.PermanentPortGUID")) +
+                                  format_interface_addresses(grab(function_response, "InfiniBand.PermanentNodeGUID")) +
+                                  format_interface_addresses(grab(function_response, "InfiniBand.PortGUID")) +
+                                  format_interface_addresses(grab(function_response, "InfiniBand.NodeGUID")),
                                   append=True)
 
             # set VLAN settings
@@ -389,10 +397,29 @@ def get_system_nics(redfish_url):
 
         return port_inventory
 
+    def get_network_adapter_members(network_adapter_data):
+
+        if not isinstance(network_adapter_data, dict):
+            return list()
+
+        # HPE specific
+        network_adapter_members = network_adapter_data.get("NetworkAdapters")
+        if network_adapter_members is None:
+            network_adapter_members = network_adapter_data.get("Members")
+
+        if network_adapter_members is None:
+            return list()
+
+        if isinstance(network_adapter_members, list):
+            return network_adapter_members
+
+        return [network_adapter_members]
+
     plugin_object.set_current_command("NICs")
 
     system_id = redfish_url.rstrip("/").split("/")[-1]
 
+    system_response = None
     ethernet_interfaces_path = None
     network_adapter_path = None
 
@@ -439,18 +466,46 @@ def get_system_nics(redfish_url):
     if network_adapter_path is None:
         network_adapter_path = f"{redfish_url}/NetworkInterfaces"
 
+    network_adapter_members = list()
+
     network_adapter_response = \
         plugin_object.rf.get_view(f"{network_adapter_path}{plugin_object.rf.vendor_data.expand_string}")
 
-    if network_adapter_response.get("error") and not system_is_booting():
-        plugin_object.add_data_retrieval_error(NetworkAdapter, network_adapter_response, network_adapter_path+"123")
-        return
+    network_adapter_members.extend(get_network_adapter_members(network_adapter_response))
 
-    # HPE specific
-    if network_adapter_response.get("NetworkAdapters") is not None:
-        network_adapter_members = network_adapter_response.get("NetworkAdapters")
-    else:
-        network_adapter_members = network_adapter_response.get("Members")
+    # some vendors (e.g. Dell/NVIDIA HGX) expose network adapters in chassis resources
+    # rather than in the system '/NetworkInterfaces' collection
+    if len(network_adapter_members) == 0:
+        if system_response is None:
+            system_response = plugin_object.rf.get(redfish_url)
+
+            if system_response.get("error"):
+                plugin_object.add_data_retrieval_error(NetworkAdapter, system_response, redfish_url)
+                return
+
+        chassis_links = plugin_object.rf.get_system_properties("chassis") or list()
+        for chassis_link in chassis_links:
+            chassis_response = plugin_object.rf.get(chassis_link)
+
+            if chassis_response.get("error"):
+                continue
+
+            chassis_network_adapter_path = grab(chassis_response, "NetworkAdapters/@odata.id", separator="/")
+            if chassis_network_adapter_path is None:
+                continue
+
+            chassis_network_adapter_response = \
+                plugin_object.rf.get_view(
+                    f"{chassis_network_adapter_path}{plugin_object.rf.vendor_data.expand_string}")
+
+            if chassis_network_adapter_response.get("error"):
+                continue
+
+            network_adapter_members.extend(get_network_adapter_members(chassis_network_adapter_response))
+
+    if len(network_adapter_members) == 0 and network_adapter_response.get("error") and not system_is_booting():
+        plugin_object.add_data_retrieval_error(NetworkAdapter, network_adapter_response, network_adapter_path)
+        return
 
     if network_adapter_members and len(network_adapter_members) > 0:
 
@@ -527,13 +582,21 @@ def get_system_nics(redfish_url):
                 if port_data.get("error") is None:
                     network_ports.extend(port_data.get("Members"))
 
-            """ # currently only used within iLO 6 and no useful info provided at the moment
+            # some platforms expose NetworkDeviceFunctions at adapter level (not only per controller)
             if adapter_response.get("NetworkDeviceFunctions") is not None:
-                network_functions_data = plugin_object.rf.get(grab(adapter_response,
-                                                                   "NetworkDeviceFunctions/@odata.id", separator="/"))
-                if network_functions_data is not None:
-                    network_functions.extend(network_functions_data.get("Members"))
-            """
+                network_functions_data = adapter_response.get("NetworkDeviceFunctions")
+
+                if isinstance(network_functions_data, dict):
+                    if network_functions_data.get("Members") is not None:
+                        network_functions.extend(network_functions_data.get("Members"))
+                    else:
+                        network_functions_link = network_functions_data.get("@odata.id")
+                        if network_functions_link is not None:
+                            network_functions_data = plugin_object.rf.get(network_functions_link)
+                            if network_functions_data.get("error") is None:
+                                network_functions.extend(network_functions_data.get("Members") or list())
+                elif isinstance(network_functions_data, list):
+                    network_functions.extend(network_functions_data)
 
             num_ports = len(network_ports)
 
